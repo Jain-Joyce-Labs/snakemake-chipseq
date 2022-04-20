@@ -1,0 +1,14 @@
+# When generating the bedgraph file, how wide (bp) should each
+# bin be?
+binsize: 20000
+# Each ChIP-seq file needs a corresponding input file, to control
+# for non-random patterns in which regions of the genome are sequenced.
+# Below, the keys are the ChIP sample names, and the values are the input
+# files.
+inputs:
+    SRR944678: SRR944690
+    SRR944679: SRR944691
+    SRR944680: SRR944692
+    SRR944681: SRR944693
+    SRR944682: SRR944694
+    SRR944683: SRR944695

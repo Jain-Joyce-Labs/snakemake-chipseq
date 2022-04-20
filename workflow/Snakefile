@@ -1,4 +1,77 @@
-# Main entrypoint of the workflow. 
-# Please follow the best practices: 
-# https://snakemake.readthedocs.io/en/stable/snakefiles/best_practices.html,
-# in particular regarding the standardized folder structure mentioned there. 
+report: "report/workflow.rst"
+
+configfile: "config/config.yaml"
+
+rule all:
+    input:
+        expand("results/{sample}.bedgraph", sample=config["inputs"].keys())
+
+rule trimmomatic:
+    input:
+        "reads/{sample}.fastq.gz"
+    output:
+        "trimmed/{sample}.fastq.gz"
+    log:
+        "logs/trimmomatic/{sample}.log"
+    container:
+        "docker://staphb/trimmomatic:0.38"
+    shell:
+        "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} SLIDINGWINDOW:4:20"
+
+rule bwa_aln:
+    input:
+        "ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
+        "trimmed/{sample}.fastq.gz"
+    output:
+        temp("mapped/index/{sample}.sai")
+    log:
+        "logs/bwa/{sample}.log"
+    container:
+        "docker://biocontainers/bwa:v0.7.17_cv1"
+    shell:
+        "bwa aln -t 16 -q 5 -l 25 -k 2 {input} > {output}"
+
+rule bwa_samse:
+    input:
+        "ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
+        "mapped/index/{sample}.sai",
+        "trimmed/{sample}.fastq.gz"
+    output:
+        temp("mapped/{sample}.sam")
+    log:
+        "logs/bwa/{sample}.log"
+    container:
+        "docker://biocontainers/bwa:v0.7.17_cv1"
+    shell:
+        "bwa samse {input} > {output}"
+
+rule sam_to_bam:
+    input:
+        "mapped/{sample}.sam"
+    output:
+        "mapped/{sample}.bam"
+    log:
+        "logs/samtools/{sample}.view.log"
+    container:
+        "docker://jweinstk/samtools:1.9"
+    shell:
+        "samtools view -S -b {input} > {output}"
+
+# convert accessions to the name of the BAM file we expect:
+for chip, control in config["inputs"].items():
+    config["inputs"][chip] = f'mapped/{control}.bam'
+
+rule make_bedgraph:
+    input:
+        lb1="mapped/{sample}.bam",
+        control=lambda wcs: config["inputs"][wcs.sample]
+    output:
+        "results/{sample}.bedgraph"
+    log:
+        "logs/deeptools/{sample}.log"
+    container:
+        "docker://stjudecloud/deeptools:1.0.1"
+    shell:
+        "bamCompare -b1 {input.lb1} -b2 {input.control} "
+            "--binSize {config[binsize]} --numberOfProcessors 16 "
+            "--outFileFormat bedgraph --outFileName {output}"
