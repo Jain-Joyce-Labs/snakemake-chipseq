@@ -6,11 +6,22 @@ rule all:
     input:
         expand("results/{sample}.bedgraph", sample=config["inputs"].keys())
 
+rule fastqc_initial:
+    input:
+        "resources/reads/{sample}.fastq.gz"
+    output:
+        "results/qc/initial/fastqc_{sample}.html"
+        "results/qc/initial/fastqc_{sample}.zip"
+    container:
+        "docker://staphb/fastqc:0.11.9"
+    shell:
+        "fastqc {input} --noextract --threads 16 --outdir results/qc/initial/"
+
 rule trimmomatic:
     input:
-        "reads/{sample}.fastq.gz"
+        "resources/reads/{sample}.fastq.gz"
     output:
-        "trimmed/{sample}.fastq.gz"
+        "results/trimmed/{sample}.fastq.gz"
     log:
         "logs/trimmomatic/{sample}.log"
     container:
@@ -18,12 +29,23 @@ rule trimmomatic:
     shell:
         "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} SLIDINGWINDOW:4:20"
 
+rule fastqc_trimmed:
+    input:
+        "results/trimmed/{sample}.fastq.gz"
+    output:
+        "results/qc/trimmed/fastqc_{sample}.html"
+        "results/qc/trimmed/fastqc_{sample}.zip"
+    container:
+        "docker://staphb/fastqc:0.11.9"
+    shell:
+        "fastqc {input} --noextract --threads 16 --outdir results/qc/trimmed/"
+
 rule bwa_aln:
     input:
-        "ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
-        "trimmed/{sample}.fastq.gz"
+        "resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
+        "results/trimmed/{sample}.fastq.gz"
     output:
-        temp("mapped/index/{sample}.sai")
+        temp("results/mapped/index/{sample}.sai")
     log:
         "logs/bwa/{sample}.log"
     container:
@@ -33,11 +55,11 @@ rule bwa_aln:
 
 rule bwa_samse:
     input:
-        "ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
-        "mapped/index/{sample}.sai",
-        "trimmed/{sample}.fastq.gz"
+        "resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
+        "results/mapped/index/{sample}.sai",
+        "results/trimmed/{sample}.fastq.gz"
     output:
-        temp("mapped/{sample}.sam")
+        temp("results/mapped/{sample}.sam")
     log:
         "logs/bwa/{sample}.log"
     container:
@@ -47,9 +69,9 @@ rule bwa_samse:
 
 rule sam_to_bam:
     input:
-        "mapped/{sample}.sam"
+        "results/mapped/{sample}.sam"
     output:
-        "mapped/{sample}.bam"
+        "results/mapped/{sample}.bam"
     log:
         "logs/samtools/{sample}.view.log"
     container:
@@ -59,11 +81,11 @@ rule sam_to_bam:
 
 # convert accessions to the name of the BAM file we expect:
 for chip, control in config["inputs"].items():
-    config["inputs"][chip] = f'mapped/{control}.bam'
+    config["inputs"][chip] = f'results/mapped/{control}.bam'
 
 rule make_bedgraph:
     input:
-        lb1="mapped/{sample}.bam",
+        lb1="results/mapped/{sample}.bam",
         control=lambda wcs: config["inputs"][wcs.sample]
     output:
         "results/{sample}.bedgraph"
