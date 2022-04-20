@@ -1,38 +1,53 @@
 report: "report/workflow.rst"
-
 configfile: "config/config.yaml"
+
+def which_fastq(wildcards):
+    if config['trim']:
+        return(f"results/trimmed/{wildcards['sample']}.fastq.gz")
+    else:
+        return(f"resources/reads/{wildcards['sample']}.fastq.gz")
 
 rule all:
     input:
         expand("results/{sample}.bedgraph", sample=config["inputs"].keys())
 
-rule fastqc_initial:
-    input:
-        "resources/reads/{sample}.fastq.gz"
-    output:
-        "results/qc/initial/fastqc_{sample}.html"
-        "results/qc/initial/fastqc_{sample}.zip"
-    container:
-        "docker://staphb/fastqc:0.11.9"
-    shell:
-        "fastqc {input} --noextract --threads 16 --outdir results/qc/initial/"
-
-rule trimmomatic:
-    input:
-        "resources/reads/{sample}.fastq.gz"
-    output:
-        "results/trimmed/{sample}.fastq.gz"
-    log:
-        "logs/trimmomatic/{sample}.log"
-    container:
-        "docker://staphb/trimmomatic:0.38"
-    shell:
-        "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} SLIDINGWINDOW:4:20"
+if config['trim']:
+    rule fastqc_initial:
+        input:
+            "resources/reads/{sample}.fastq.gz"
+        output:
+            "results/qc/initial/fastqc_{sample}.html"
+            "results/qc/initial/fastqc_{sample}.zip"
+        container:
+            "docker://staphb/fastqc:0.11.9"
+        shell:
+            "fastqc {input} --noextract --threads 16 --outdir results/qc/initial/"
+    rule trimmomatic:
+        input:
+            "resources/reads/{sample}.fastq.gz"
+        output:
+            "results/trimmed/{sample}.fastq.gz"
+        log:
+            "logs/trimmomatic/{sample}.log"
+        container:
+            "docker://staphb/trimmomatic:0.38"
+        shell:
+            "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} SLIDINGWINDOW:4:20"
+    rule fastqc_trimmed:
+        input:
+            "results/mapped/{sample}.bam" # this is aligned farther down
+        output:
+            "results/qc/trimmed/fastqc_{sample}.html"
+            "results/qc/trimmed/fastqc_{sample}.zip"
+        container:
+            "docker://staphb/fastqc:0.11.9"
+        shell:
+            "fastqc {input} --noextract --threads 16 --outdir results/qc/trimmed/"
 
 rule bwa_aln:
     input:
         "resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
-        "results/trimmed/{sample}.fastq.gz"
+        which_fastq
     output:
         temp("results/mapped/index/{sample}.sai")
     log:
@@ -46,7 +61,7 @@ rule bwa_samse:
     input:
         "resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
         "results/mapped/index/{sample}.sai",
-        "results/trimmed/{sample}.fastq.gz"
+        which_fastq
     output:
         temp("results/mapped/{sample}.sam")
     log:
@@ -67,17 +82,6 @@ rule sam_to_bam:
         "docker://jweinstk/samtools:1.9"
     shell:
         "samtools view -S -b {input} > {output}"
-
-rule fastqc_trimmed:
-    input:
-        "results/mapped/{sample}.bam"
-    output:
-        "results/qc/trimmed/fastqc_{sample}.html"
-        "results/qc/trimmed/fastqc_{sample}.zip"
-    container:
-        "docker://staphb/fastqc:0.11.9"
-    shell:
-        "fastqc {input} --noextract --threads 16 --outdir results/qc/trimmed/"
 
 # convert accessions to the name of the BAM file we expect:
 for chip, control in config["inputs"].items():

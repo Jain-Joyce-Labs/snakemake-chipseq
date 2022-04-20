@@ -1,3 +1,5 @@
+# Should input FASTQ files be trimmed for quality?
+trim: False
 # When generating the bedgraph file, how wide (bp) should each
 # bin be?
 binsize: 20000
