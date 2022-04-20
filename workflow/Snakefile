@@ -29,17 +29,6 @@ rule trimmomatic:
     shell:
         "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} SLIDINGWINDOW:4:20"
 
-rule fastqc_trimmed:
-    input:
-        "results/trimmed/{sample}.fastq.gz"
-    output:
-        "results/qc/trimmed/fastqc_{sample}.html"
-        "results/qc/trimmed/fastqc_{sample}.zip"
-    container:
-        "docker://staphb/fastqc:0.11.9"
-    shell:
-        "fastqc {input} --noextract --threads 16 --outdir results/qc/trimmed/"
-
 rule bwa_aln:
     input:
         "resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
@@ -78,6 +67,17 @@ rule sam_to_bam:
         "docker://jweinstk/samtools:1.9"
     shell:
         "samtools view -S -b {input} > {output}"
+
+rule fastqc_trimmed:
+    input:
+        "results/mapped/{sample}.bam"
+    output:
+        "results/qc/trimmed/fastqc_{sample}.html"
+        "results/qc/trimmed/fastqc_{sample}.zip"
+    container:
+        "docker://staphb/fastqc:0.11.9"
+    shell:
+        "fastqc {input} --noextract --threads 16 --outdir results/qc/trimmed/"
 
 # convert accessions to the name of the BAM file we expect:
 for chip, control in config["inputs"].items():
