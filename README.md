@@ -12,7 +12,7 @@ A Snakemake workflow for processing ChIP-seq experiments. Input is demultiplexed
 Running on the HPC cluster:
 
 ```sh
-snakemake --use-singularity --cluster 'bsub -n 16 -R "span[hosts=1]"'
+snakemake --use-singularity --jobs 45 --cluster 'bsub -n 16 -R "span[hosts=1]"'
 ```
 
 The usage of this workflow may eventually be described in the [Snakemake Workflow Catalog](https://snakemake.github.io/snakemake-workflow-catalog/?usage=Jain_Joyce-Labs%2Fsnakemake-chipseq).

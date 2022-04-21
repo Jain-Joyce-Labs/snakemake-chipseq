@@ -75,22 +75,51 @@ rule sam_to_bam:
     input:
         "results/mapped/{sample}.sam"
     output:
-        "results/mapped/{sample}.bam"
+        temp("results/mapped/{sample}.bam")
     log:
         "logs/samtools/{sample}.view.log"
     container:
-        "docker://jweinstk/samtools:1.9"
+        "docker://kfdrc/samtools:1.9"
     shell:
         "samtools view -S -b {input} > {output}"
 
+rule sort_bam:
+    input:
+        "results/mapped/{sample}.bam"
+    output:
+        "results/mapped/{sample}.sorted.bam"
+    log:
+        "logs/samtools/{sample}.sort.log"
+    container:
+        "docker://kfdrc/samtools:1.9"
+    shell:
+        "samtools sort -l 7 -O bam -@ 16 -o {output} {input}"
+
+rule index_bam:
+    input:
+        "results/mapped/{sample}.sorted.bam"
+    output:
+        "results/mapped/{sample}.sorted.bam.bai"
+    log:
+        "logs/samtools/{sample}.index.log"
+    container:
+        "docker://kfdrc/samtools:1.9"
+    shell:
+        "samtools index --threads 16 {input}"
+
 # convert accessions to the name of the BAM file we expect:
+inputfiles = {}
+inputindices = {}
 for chip, control in config["inputs"].items():
-    config["inputs"][chip] = f'results/mapped/{control}.bam'
+    inputfiles[chip] = f'results/mapped/{control}.sorted.bam'
+    inputindices[chip] = f'results/mapped/{control}.sorted.bam.bai'
 
 rule make_bedgraph:
     input:
-        lb1="results/mapped/{sample}.bam",
-        control=lambda wcs: config["inputs"][wcs.sample]
+        lb1="results/mapped/{sample}.sorted.bam",
+        control=lambda wcs: inputfiles[wcs.sample],
+        lb1_index="results/mapped/{sample}.sorted.bam.bai",
+        control_index=lambda wcs: inputindices[wcs.sample],
     output:
         "results/{sample}.bedgraph"
     log:
