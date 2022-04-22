@@ -93,7 +93,7 @@ rule sort_bam:
     container:
         "docker://kfdrc/samtools:1.9"
     shell:
-        "samtools sort -l 7 -O bam -@ 16 -o {output} {input}"
+        "samtools sort -l 7 -O bam -@ 10 -o {output} {input}" # 768MB memory required per thread?
 
 rule index_bam:
     input:
@@ -105,7 +105,7 @@ rule index_bam:
     container:
         "docker://kfdrc/samtools:1.9"
     shell:
-        "samtools index --threads 16 {input}"
+        "samtools index -@ 16 {input}"
 
 # convert accessions to the name of the BAM file we expect:
 inputfiles = {}
