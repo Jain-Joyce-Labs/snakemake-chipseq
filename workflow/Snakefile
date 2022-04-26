@@ -1,7 +1,10 @@
 report: "report/workflow.rst"
 configfile: "config/config.yaml"
 
+# include: "common.smk"
 def which_fastq(wildcards):
+    # Determines the path to fastq files depending on whether they've
+    # been trimmed
     if config['trim']:
         return(f"results/trimmed/{wildcards['sample']}.fastq.gz")
     else:
@@ -53,7 +56,7 @@ if config['aligner'] == 'bowtie':
             ref="resources/bowtie_ref/GRCh38_noalt_as.1.bt2",
             fastq=which_fastq
         output:
-            temp("results/mapped/{sample}.unsorted.sam")
+            temp("results/mapped/{sample}.sam")
         log:
             "logs/bwa/{sample}.log"
         container:
@@ -84,22 +87,19 @@ elif config['aligner'] == 'bwa':
             "results/mapped/index/{sample}.sai",
             which_fastq
         output:
-            temp("results/mapped/{sample}.unsorted.sam")
+            temp("results/mapped/{sample}.sam")
         log:
             "logs/bwa/{sample}.log"
         container:
             "docker://biocontainers/bwa:v0.7.17_cv1"
         shell:
             "bwa samse {input} > {output}"
-else:
-    print(f"ERROR: Unrecognized aligner specified in config: {config['aligner']}")
-    exit(1)
 
 rule sam_to_bam:
     input:
-        "results/mapped/{sample}.unsorted.sam"
+        "results/mapped/{sample}.sam"
     output:
-        temp("results/mapped/{sample}.unsorted.bam")
+        temp("results/mapped/unsorted/{sample}.bam")
     log:
         "logs/samtools/{sample}.view.log"
     container:
@@ -109,9 +109,9 @@ rule sam_to_bam:
 
 rule sort_bam:
     input:
-        "results/mapped/{sample}.unsorted.bam"
+        "results/mapped/unsorted/{sample}.bam"
     output:
-        temp("results/mapped/{sample}.sorted.bam")
+        temp("results/mapped/sorted/{sample}.bam")
     log:
         "logs/samtools/{sample}.sort.log"
     container:
@@ -121,9 +121,9 @@ rule sort_bam:
 
 rule remove_duplicate_reads:
     input:
-        "results/mapped/{sample}.sorted.bam"
+        "results/mapped/sorted/{sample}.bam"
     output:
-        temp("results/mapped/{sample}.nodupes.bam")
+        temp("results/mapped/nodupes/{sample}.bam")
     log:
         "logs/picard/{sample}.log"
     container:
@@ -137,10 +137,13 @@ rule remove_duplicate_reads:
 
 rule remove_blacklisted:
     input:
-        bam="results/mapped/{sample}.nodupes.bam",
+        bam="results/mapped/nodupes/{sample}.bam",
         blacklist="resources/hg38-blacklist.v2.bed"
     output:
-        "results/mapped/{sample}.bam"
+        # The regex valication here is NEEDED to prevent
+        # a big infinite loop where snakemake is inferring
+        # ever-growing values for "sample"
+        "results/mapped/{sample,\w\w\w\d+}.bam"
     log:
         "logs/bedtools/{sample}.log"
     container:
