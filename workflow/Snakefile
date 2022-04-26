@@ -44,14 +44,14 @@ if config['trim']:
         shell:
             "fastqc {input} --noextract --threads 16 --outdir results/qc/trimmed/"
 
-if aligner == 'bowtie'
+if config['aligner'] == 'bowtie':
     rule bowtie_align:
         input:
             # There are multiple index files required here, but we
             # list one with the assumption that the rest are always
             # with it
-            ref: "resources/bowtie_ref/GRCh38_noalt_as.1.bt2",
-            fastq: which_fastq
+            ref="resources/bowtie_ref/GRCh38_noalt_as.1.bt2",
+            fastq=which_fastq
         output:
             temp("results/mapped/{sample}.unsorted.sam")
         log:
@@ -64,7 +64,7 @@ if aligner == 'bowtie'
                 "-U {input.fastq} "
                 "-S {output}"
 
-elif aligner == 'bwa':
+elif config['aligner'] == 'bwa':
     rule bwa_aln:
         input:
             "resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
@@ -137,8 +137,8 @@ rule remove_duplicate_reads:
 
 rule remove_blacklisted:
     input:
-        bam:"results/mapped/{sample}.nodupes.bam"
-        blacklist:"resources/hg38-blacklist.v2.bed"
+        bam="results/mapped/{sample}.nodupes.bam",
+        blacklist="resources/hg38-blacklist.v2.bed"
     output:
         "results/mapped/{sample}.bam"
     log:
@@ -175,11 +175,13 @@ rule make_bedgraph:
         control_index=lambda wcs: inputindices[wcs.sample],
     output:
         "results/{sample}.bedgraph"
+    params:
+        binsize=config['binsize']
     log:
         "logs/deeptools/{sample}.log"
     container:
         "docker://stjudecloud/deeptools:1.0.1"
     shell:
         "bamCompare -b1 {input.lb1} -b2 {input.control} "
-            "--binSize {config[binsize]} --numberOfProcessors 16 "
+            "--binSize {params.binsize} --numberOfProcessors 16 "
             "--outFileFormat bedgraph --outFileName {output}"
