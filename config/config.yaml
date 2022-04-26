@@ -1,3 +1,7 @@
+# Which alignment tool should we use? Options are:
+# - bwa: for very short (i.e. 36bp) reads
+# - bowtie: for everything else
+aligner: bowtie
 # Should input FASTQ files be trimmed for quality?
 trim: False
 # When generating the bedgraph file, how wide (bp) should each
@@ -9,8 +13,8 @@ binsize: 20000
 # files.
 inputs:
     SRR944678: SRR944690
-    SRR944679: SRR944691
-    SRR944680: SRR944692
-    SRR944681: SRR944693
-    SRR944682: SRR944694
-    SRR944683: SRR944695
+    # SRR944679: SRR944691
+    # SRR944680: SRR944692
+    # SRR944681: SRR944693
+    # SRR944682: SRR944694
+    # SRR944683: SRR944695

@@ -44,38 +44,62 @@ if config['trim']:
         shell:
             "fastqc {input} --noextract --threads 16 --outdir results/qc/trimmed/"
 
-rule bwa_aln:
-    input:
-        "resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
-        which_fastq
-    output:
-        temp("results/mapped/index/{sample}.sai")
-    log:
-        "logs/bwa/{sample}.log"
-    container:
-        "docker://biocontainers/bwa:v0.7.17_cv1"
-    shell:
-        "bwa aln -t 16 -q 5 -l 25 -k 2 {input} > {output}"
+if aligner == 'bowtie'
+    rule bowtie_align:
+        input:
+            # There are multiple index files required here, but we
+            # list one with the assumption that the rest are always
+            # with it
+            ref: "resources/bowtie_ref/GRCh38_noalt_as.1.bt2",
+            fastq: which_fastq
+        output:
+            temp("results/mapped/{sample}.unsorted.sam")
+        log:
+            "logs/bwa/{sample}.log"
+        container:
+            "docker://biocontainers/bowtie2:v2.4.1_cv1"
+        shell:
+            "bowtie2 -p 16 -q --local "
+                "-x resources/bowtie_ref "
+                "-U {input.fastq} "
+                "-S {output}"
 
-rule bwa_samse:
-    input:
-        "resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
-        "results/mapped/index/{sample}.sai",
-        which_fastq
-    output:
-        temp("results/mapped/{sample}.sam")
-    log:
-        "logs/bwa/{sample}.log"
-    container:
-        "docker://biocontainers/bwa:v0.7.17_cv1"
-    shell:
-        "bwa samse {input} > {output}"
+elif aligner == 'bwa':
+    rule bwa_aln:
+        input:
+            "resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
+            which_fastq
+        output:
+            temp("results/mapped/index/{sample}.sai")
+        log:
+            "logs/bwa/{sample}.log"
+        container:
+            "docker://biocontainers/bwa:v0.7.17_cv1"
+        shell:
+            "bwa aln -t 16 -q 5 -l 25 -k 2 {input} > {output}"
+
+    rule bwa_samse:
+        input:
+            "resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
+            "results/mapped/index/{sample}.sai",
+            which_fastq
+        output:
+            temp("results/mapped/{sample}.unsorted.sam")
+        log:
+            "logs/bwa/{sample}.log"
+        container:
+            "docker://biocontainers/bwa:v0.7.17_cv1"
+        shell:
+            "bwa samse {input} > {output}"
+else:
+    print(f"ERROR: Unrecognized aligner specified in config: {config['aligner']}")
+    exit(1)
 
 rule sam_to_bam:
     input:
-        "results/mapped/{sample}.sam"
+        "results/mapped/{sample}.unsorted.sam"
     output:
-        temp("results/mapped/{sample}.bam")
+        temp("results/mapped/{sample}.unsorted.bam")
     log:
         "logs/samtools/{sample}.view.log"
     container:
@@ -85,9 +109,9 @@ rule sam_to_bam:
 
 rule sort_bam:
     input:
-        "results/mapped/{sample}.bam"
+        "results/mapped/{sample}.unsorted.bam"
     output:
-        "results/mapped/{sample}.sorted.bam"
+        temp("results/mapped/{sample}.sorted.bam")
     log:
         "logs/samtools/{sample}.sort.log"
     container:
@@ -95,11 +119,40 @@ rule sort_bam:
     shell:
         "samtools sort -l 9 -O bam -@ 10 -o {output} {input}" # 768MB memory required per thread?
 
-rule index_bam:
+rule remove_duplicate_reads:
     input:
         "results/mapped/{sample}.sorted.bam"
     output:
-        "results/mapped/{sample}.sorted.bam.bai"
+        temp("results/mapped/{sample}.nodupes.bam")
+    log:
+        "logs/picard/{sample}.log"
+    container:
+        "docker://broadinstitute/picard:2.27.1"
+    shell:
+        "java -jar picard.jar MarkDuplicates "
+            "I={input} "
+            "O={output} "
+            "M=logs/picard/{input}.txt "
+            "REMOVE_DUPLICATES=true"
+
+rule remove_blacklisted:
+    input:
+        bam:"results/mapped/{sample}.nodupes.bam"
+        blacklist:"resources/hg38-blacklist.v2.bed"
+    output:
+        "results/mapped/{sample}.bam"
+    log:
+        "logs/bedtools/{sample}.log"
+    container:
+        "docker://staphb/bedtools:2.30.0"
+    shell:
+        "bedtools subtract -a {input.bam} -b {input.blacklist} > {output}"
+
+rule index_bam:
+    input:
+        "results/mapped/{sample}.bam"
+    output:
+        "results/mapped/{sample}.bam.bai"
     log:
         "logs/samtools/{sample}.index.log"
     container:
@@ -111,14 +164,14 @@ rule index_bam:
 inputfiles = {}
 inputindices = {}
 for chip, control in config["inputs"].items():
-    inputfiles[chip] = f'results/mapped/{control}.sorted.bam'
-    inputindices[chip] = f'results/mapped/{control}.sorted.bam.bai'
+    inputfiles[chip] = f'results/mapped/{control}.bam'
+    inputindices[chip] = f'results/mapped/{control}.bam.bai'
 
 rule make_bedgraph:
     input:
-        lb1="results/mapped/{sample}.sorted.bam",
+        lb1="results/mapped/{sample}.bam",
         control=lambda wcs: inputfiles[wcs.sample],
-        lb1_index="results/mapped/{sample}.sorted.bam.bai",
+        lb1_index="results/mapped/{sample}.bam.bai",
         control_index=lambda wcs: inputindices[wcs.sample],
     output:
         "results/{sample}.bedgraph"
