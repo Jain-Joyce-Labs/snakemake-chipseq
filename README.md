@@ -21,7 +21,7 @@ python3 -m venv venv
 source venv/bin/activate
 pip install snakemake
 
-snakemake --use-singularity --jobs 45 --cluster 'bsub -n 16 -M 12000 -R "span[hosts=1]"'
+snakemake --use-singularity --jobs 45 --cluster 'bsub -n 16 -o {log} -M 12000 -R "span[hosts=1]"'
 ```
 
 The usage of this workflow may eventually be described in the [Snakemake Workflow Catalog](https://snakemake.github.io/snakemake-workflow-catalog/?usage=Jain_Joyce-Labs%2Fsnakemake-chipseq).

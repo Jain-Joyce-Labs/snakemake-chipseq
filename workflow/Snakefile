@@ -5,7 +5,8 @@ include: "common.smk"
 
 rule all:
     input:
-        expand("results/{sample}.bedgraph", sample=config["inputs"].keys())
+        expand("results/{sample}.bedgraph", sample=config["inputs"].keys()),
+        expand("results/readcounts/{sample}.txt", sample=config["inputs"].keys())
 
 if config['trim']:
     rule fastqc_initial:
@@ -14,6 +15,8 @@ if config['trim']:
         output:
             "results/qc/initial/fastqc_{sample}.html"
             "results/qc/initial/fastqc_{sample}.zip"
+        log:
+            "logs/fastqc/{sample}.initial"
         container:
             "docker://staphb/fastqc:0.11.9"
         shell:
@@ -35,6 +38,8 @@ if config['trim']:
         output:
             "results/qc/trimmed/fastqc_{sample}.html"
             "results/qc/trimmed/fastqc_{sample}.zip"
+        log:
+            "logs/fastqc/{sample}.aftertrim"
         container:
             "docker://staphb/fastqc:0.11.9"
         shell:
@@ -51,14 +56,14 @@ if config['aligner'] == 'bowtie':
         output:
             temp("results/mapped/{sample}.sam")
         log:
-            "logs/bwa/{sample}.log"
+            "logs/bowtie/{sample}"
         container:
             "docker://biocontainers/bowtie2:v2.4.1_cv1"
         shell:
             "bowtie2 -p 16 -q --local "
                 "-x resources/bowtie_ref "
                 "-U {input.fastq} "
-                "-S {output}"
+                "-S {output} 2> {log}.err"
 
 elif config['aligner'] == 'bwa':
     rule bwa_aln:
@@ -68,7 +73,7 @@ elif config['aligner'] == 'bwa':
         output:
             temp("results/mapped/index/{sample}.sai")
         log:
-            "logs/bwa/{sample}.log"
+            "logs/bwa/{sample}.aln"
         container:
             "docker://biocontainers/bwa:v0.7.17_cv1"
         shell:
@@ -82,7 +87,7 @@ elif config['aligner'] == 'bwa':
         output:
             temp("results/mapped/{sample}.sam")
         log:
-            "logs/bwa/{sample}.log"
+            "logs/bwa/{sample}.samse"
         container:
             "docker://biocontainers/bwa:v0.7.17_cv1"
         shell:
@@ -94,7 +99,7 @@ rule sam_to_bam:
     output:
         temp("results/mapped/unsorted/{sample}.bam")
     log:
-        "logs/samtools/{sample}.view.log"
+        "logs/samtools/{sample}.view"
     container:
         "docker://kfdrc/samtools:1.9"
     shell:
@@ -106,7 +111,7 @@ rule sort_bam:
     output:
         temp("results/mapped/sorted/{sample}.bam")
     log:
-        "logs/samtools/{sample}.sort.log"
+        "logs/samtools/{sample}.sort"
     container:
         "docker://kfdrc/samtools:1.9"
     shell:
@@ -118,14 +123,14 @@ rule remove_duplicate_reads:
     output:
         temp("results/mapped/nodupes/{sample}.bam")
     log:
-        "logs/picard/{sample}.log"
+        "logs/picard/{sample}"
     container:
         "docker://broadinstitute/picard:2.27.1"
     shell:
         "java -jar picard.jar MarkDuplicates "
             "I={input} "
             "O={output} "
-            "M=logs/picard/{input}.txt "
+            "M=logs/picard/{wildcards[sample]}.txt "
             "REMOVE_DUPLICATES=true"
 
 rule remove_blacklisted:
@@ -138,11 +143,35 @@ rule remove_blacklisted:
         # ever-growing values for "sample"
         "results/mapped/{sample,\w\w\w\d+}.bam"
     log:
-        "logs/bedtools/{sample}.log"
+        "logs/bedtools/{sample}"
     container:
         "docker://staphb/bedtools:2.30.0"
     shell:
-        "bedtools subtract -a {input.bam} -b {input.blacklist} > {output}"
+        "bedtools subtract -a {input.bam} -b {input.blacklist} "
+        "> {output}"
+
+rule count_reads_stages:
+    input:
+        "results/mapped/unsorted/{sample}.bam",
+        "results/mapped/sorted/{sample}.bam",
+        "results/mapped/nodupes/{sample}.bam",
+        "results/mapped/{sample}.bam"
+    output:
+        "results/readcounts/{sample}.txt"
+    log:
+        "logs/samtools/{sample}.counting"
+    container:
+        "docker://kfdrc/samtools:1.9"
+    shell:
+        """
+        date > {output}
+
+        for var in ({input})
+        do
+            echo $var >> {output}
+            samtools view -c -F 260 $var >> {output}
+        done
+        """
 
 rule index_bam:
     input:
@@ -150,7 +179,7 @@ rule index_bam:
     output:
         "results/mapped/{sample}.bam.bai"
     log:
-        "logs/samtools/{sample}.index.log"
+        "logs/samtools/{sample}.index"
     container:
         "docker://kfdrc/samtools:1.9"
     shell:
