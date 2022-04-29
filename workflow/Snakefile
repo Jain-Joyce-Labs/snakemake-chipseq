@@ -19,6 +19,8 @@ if config['trim']:
             "logs/fastqc/{sample}.initial"
         container:
             "docker://staphb/fastqc:0.11.9"
+        resources:
+            memory=12
         shell:
             "fastqc {input} --noextract --threads 16 --outdir results/qc/initial/"
     rule trimmomatic:
@@ -30,6 +32,8 @@ if config['trim']:
             "logs/trimmomatic/{sample}.log"
         container:
             "docker://staphb/trimmomatic:0.38"
+        resources:
+            memory=12
         shell:
             "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} SLIDINGWINDOW:4:20"
     rule fastqc_trimmed:
@@ -42,6 +46,8 @@ if config['trim']:
             "logs/fastqc/{sample}.aftertrim"
         container:
             "docker://staphb/fastqc:0.11.9"
+        resources:
+            memory=12
         shell:
             "fastqc {input} --noextract --threads 16 --outdir results/qc/trimmed/"
 
@@ -76,6 +82,8 @@ elif config['aligner'] == 'bwa':
             "logs/bwa/{sample}.aln"
         container:
             "docker://biocontainers/bwa:v0.7.17_cv1"
+        resources:
+            memory=12
         shell:
             "bwa aln -t 16 -q 5 -l 25 -k 2 {input} > {output}"
 
@@ -90,6 +98,8 @@ elif config['aligner'] == 'bwa':
             "logs/bwa/{sample}.samse"
         container:
             "docker://biocontainers/bwa:v0.7.17_cv1"
+        resources:
+            memory=12
         shell:
             "bwa samse {input} > {output}"
 
@@ -102,8 +112,10 @@ rule sam_to_bam:
         "logs/samtools/{sample}.view"
     container:
         "docker://kfdrc/samtools:1.9"
-    shell:
-        "samtools view -S -b {input} > {output}"
+    resources:
+        memory=12
+    shell: # "-bF 4" also filters out unmapped reads
+        "samtools view -S -bF 4 {input} > {output}"
 
 rule sort_bam:
     input:
@@ -114,6 +126,8 @@ rule sort_bam:
         "logs/samtools/{sample}.sort"
     container:
         "docker://kfdrc/samtools:1.9"
+    resources:
+        memory=12
     shell:
         "samtools sort -l 9 -O bam -@ 10 -o {output} {input}" # 768MB memory required per thread?
 
@@ -126,12 +140,15 @@ rule remove_duplicate_reads:
         "logs/picard/{sample}"
     container:
         "docker://broadinstitute/picard:2.27.1"
+    resources:
+        memory=16
     shell:
-        "java -jar picard.jar MarkDuplicates "
+        "java -jar /usr/picard/picard.jar MarkDuplicates "
             "I={input} "
             "O={output} "
             "M=logs/picard/{wildcards[sample]}.txt "
-            "REMOVE_DUPLICATES=true"
+            "REMOVE_DUPLICATES=true "
+            "2> {log}"
 
 rule remove_blacklisted:
     input:
@@ -146,6 +163,8 @@ rule remove_blacklisted:
         "logs/bedtools/{sample}"
     container:
         "docker://staphb/bedtools:2.30.0"
+    resources:
+        memory=12
     shell:
         "bedtools subtract -a {input.bam} -b {input.blacklist} "
         "> {output}"
@@ -162,6 +181,8 @@ rule count_reads_stages:
         "logs/samtools/{sample}.counting"
     container:
         "docker://kfdrc/samtools:1.9"
+    resources:
+        memory=12
     shell:
         """
         date > {output}
@@ -182,6 +203,8 @@ rule index_bam:
         "logs/samtools/{sample}.index"
     container:
         "docker://kfdrc/samtools:1.9"
+    resources:
+        memory=12
     shell:
         "samtools index -@ 16 {input}"
 
@@ -206,6 +229,8 @@ rule make_bedgraph:
         "logs/deeptools/{sample}.log"
     container:
         "docker://stjudecloud/deeptools:1.0.1"
+    resources:
+        memory=12
     shell:
         "bamCompare -b1 {input.lb1} -b2 {input.control} "
             "--binSize {params.binsize} --numberOfProcessors 16 "
