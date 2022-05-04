@@ -74,7 +74,7 @@ if config['aligner'] == 'bowtie':
 elif config['aligner'] == 'bwa':
     rule bwa_aln:
         input:
-            "resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
+            "/home/rabdill/senescence/sadaie_chip/resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
             which_fastq
         output:
             temp("results/mapped/index/{sample}.sai")
@@ -89,7 +89,7 @@ elif config['aligner'] == 'bwa':
 
     rule bwa_samse:
         input:
-            "resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
+            "/home/rabdill/senescence/sadaie_chip/resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
             "results/mapped/index/{sample}.sai",
             which_fastq
         output:
@@ -131,29 +131,29 @@ rule sort_bam:
     shell:
         "samtools sort -l 9 -O bam -@ 10 -o {output} {input}" # 768MB memory required per thread?
 
-rule remove_duplicate_reads:
-    input:
-        "results/mapped/sorted/{sample}.bam"
-    output:
-        temp("results/mapped/nodupes/{sample}.bam")
-    log:
-        "logs/picard/{sample}"
-    container:
-        "docker://broadinstitute/picard:2.27.1"
-    resources:
-        memory=16
-    shell:
-        "java -jar /usr/picard/picard.jar MarkDuplicates "
-            "I={input} "
-            "O={output} "
-            "M=logs/picard/{wildcards[sample]}.txt "
-            "REMOVE_DUPLICATES=true "
-            "2> {log}"
+# rule remove_duplicate_reads:
+#     input:
+#         "results/mapped/sorted/{sample}.bam"
+#     output:
+#         temp("results/mapped/nodupes/{sample}.bam")
+#     log:
+#         "logs/picard/{sample}"
+#     container:
+#         "docker://broadinstitute/picard:2.27.1"
+#     resources:
+#         memory=16
+#     shell:
+#         "java -jar /usr/picard/picard.jar MarkDuplicates "
+#             "I={input} "
+#             "O={output} "
+#             "M=logs/picard/{wildcards[sample]}.txt "
+#             "REMOVE_DUPLICATES=true "
+#             "2> {log}"
 
 rule remove_blacklisted:
     input:
-        bam="results/mapped/nodupes/{sample}.bam",
-        blacklist="resources/hg38-blacklist.v2.bed"
+        bam="results/mapped/sorted/{sample}.bam",
+        blacklist="/home/rabdill/senescence/sadaie_chip/resources/hg38-blacklist.v2.bed"
     output:
         # The regex valication here is NEEDED to prevent
         # a big infinite loop where snakemake is inferring
@@ -173,7 +173,7 @@ rule count_reads_stages:
     input:
         "results/mapped/unsorted/{sample}.bam",
         "results/mapped/sorted/{sample}.bam",
-        "results/mapped/nodupes/{sample}.bam",
+        #"results/mapped/nodupes/{sample}.bam",
         "results/mapped/{sample}.bam"
     output:
         "results/readcounts/{sample}.txt"
@@ -184,15 +184,7 @@ rule count_reads_stages:
     resources:
         memory=12
     shell:
-        """
-        date > {output}
-
-        for var in ({input})
-        do
-            echo $var >> {output}
-            samtools view -c -F 260 $var >> {output}
-        done
-        """
+        "bash scripts/counter.sh {input} {output} 2> {log}"
 
 rule index_bam:
     input:

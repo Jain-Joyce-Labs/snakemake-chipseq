@@ -19,9 +19,9 @@ cd NAME_OF_PROJECT
 
 python3 -m venv venv
 source venv/bin/activate
-pip install snakemake
+pip install snakemake # this line only needs to be run the first time the pipeline is installed
 
-snakemake --use-singularity --jobs 45 --cluster 'bsub -n 16 -o {log} -M {resources.memory}000 -R "span[hosts=1]"'
+snakemake --use-singularity --jobs 45 --singularity-args "--bind /home/rabdill/senescence/sadaie_chip/resources" --cluster 'bsub -n 16 -o {log} -M {resources.memory}000 -R "span[hosts=1]"'
 ```
 
 The usage of this workflow may eventually be described in the [Snakemake Workflow Catalog](https://snakemake.github.io/snakemake-workflow-catalog/?usage=Jain_Joyce-Labs%2Fsnakemake-chipseq).
