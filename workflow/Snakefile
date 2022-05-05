@@ -57,7 +57,7 @@ if config['aligner'] == 'bowtie':
             # There are multiple index files required here, but we
             # list one with the assumption that the rest are always
             # with it
-            ref="resources/bowtie_ref/GRCh38_noalt_as.1.bt2",
+            ref="/home/rabdill/senescence/sadaie_chip/resources/bowtie_ref/GRCh38_noalt_as.1.bt2",
             fastq=which_fastq
         output:
             temp("results/mapped/{sample}.sam")
@@ -65,9 +65,11 @@ if config['aligner'] == 'bowtie':
             "logs/bowtie/{sample}"
         container:
             "docker://biocontainers/bowtie2:v2.4.1_cv1"
+        resources:
+            memory=12
         shell:
             "bowtie2 -p 16 -q --local "
-                "-x resources/bowtie_ref "
+                "-x /home/rabdill/senescence/sadaie_chip/resources/bowtie_ref/GRCh38_noalt_as "
                 "-U {input.fastq} "
                 "-S {output} 2> {log}.err"
 
