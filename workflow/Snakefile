@@ -6,7 +6,8 @@ include: "common.smk"
 rule all:
     input:
         expand("results/{sample}.bedgraph", sample=config["inputs"].keys()),
-        expand("results/readcounts/{sample}.txt", sample=config["inputs"].keys())
+        expand("results/readcounts/{sample}.txt", sample=config["inputs"].keys()),
+        expand("results/readcounts/{sample}.txt", sample=config["inputs"].values())
 
 if config['trim']:
     rule fastqc_initial:
@@ -57,7 +58,7 @@ if config['aligner'] == 'bowtie':
             # There are multiple index files required here, but we
             # list one with the assumption that the rest are always
             # with it
-            ref="/home/rabdill/senescence/sadaie_chip/resources/bowtie_ref/GRCh38_noalt_as.1.bt2",
+            ref="/home/rabdill/snakemake-chipseq/resources/bowtie_ref/GRCh38_noalt_as.1.bt2",
             fastq=which_fastq
         output:
             temp("results/mapped/{sample}.sam")
@@ -69,14 +70,14 @@ if config['aligner'] == 'bowtie':
             memory=12
         shell:
             "bowtie2 -p 16 -q --local "
-                "-x /home/rabdill/senescence/sadaie_chip/resources/bowtie_ref/GRCh38_noalt_as "
+                "-x /home/rabdill/snakemake-chipseq/resources/bowtie_ref/GRCh38_noalt_as "
                 "-U {input.fastq} "
                 "-S {output} 2> {log}.err"
 
 elif config['aligner'] == 'bwa':
     rule bwa_aln:
         input:
-            "/home/rabdill/senescence/sadaie_chip/resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
+            "/home/rabdill/snakemake-chipseq/resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
             which_fastq
         output:
             temp("results/mapped/index/{sample}.sai")
@@ -91,7 +92,7 @@ elif config['aligner'] == 'bwa':
 
     rule bwa_samse:
         input:
-            "/home/rabdill/senescence/sadaie_chip/resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
+            "/home/rabdill/snakemake-chipseq/resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
             "results/mapped/index/{sample}.sai",
             which_fastq
         output:
@@ -155,7 +156,7 @@ rule sort_bam:
 rule remove_blacklisted:
     input:
         bam="results/mapped/sorted/{sample}.bam",
-        blacklist="/home/rabdill/senescence/sadaie_chip/resources/hg38-blacklist.v2.bed"
+        blacklist="/home/rabdill/snakemake-chipseq/resources/hg38-blacklist.v2.bed"
     output:
         # The regex valication here is NEEDED to prevent
         # a big infinite loop where snakemake is inferring
