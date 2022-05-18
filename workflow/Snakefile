@@ -5,9 +5,14 @@ include: "common.smk"
 
 rule all:
     input:
+        # Bedgraph files of the ChIP samples
         expand("results/{sample}.bedgraph", sample=config["inputs"].keys()),
+        # Read counts at various stages
         expand("results/readcounts/{sample}.txt", sample=config["inputs"].keys()),
-        expand("results/readcounts/{sample}.txt", sample=config["inputs"].values())
+        expand("results/readcounts/{sample}.txt", sample=config["inputs"].values()),
+        # FastQC reports
+        expand("results/qc/trimmed/fastqc_{sample}.zip", sample=config["inputs"].keys()),
+        expand("results/qc/trimmed/fastqc_{sample}.zip", sample=config["inputs"].values())
 
 if config['trim']:
     rule fastqc_initial: # NOTE: FastQC won't run unless you add the outputs to "rule all" above
@@ -39,7 +44,7 @@ if config['trim']:
             "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} SLIDINGWINDOW:4:20"
     rule fastqc_trimmed:
         input:
-            "results/mapped/{sample}.bam" # this is aligned farther down
+            "results/trimmed/{sample}.fastq.gz"
         output:
             "results/qc/trimmed/fastqc_{sample}.html"
             "results/qc/trimmed/fastqc_{sample}.zip"
@@ -133,6 +138,20 @@ rule sort_bam:
         memory=12
     shell:
         "samtools sort -l 9 -O bam -@ 10 -o {output} {input}" # 768MB memory required per thread?
+
+# rule ssp_quality_control:
+#     input: # TODO: We should be able to run all BAMs through together
+#         reads="results/mapped/sorted/{sample}.bam",
+#         gt="/home/rabdill/snakemake-chipseq/resources/ssp/genometable.txt",
+#         mptable="/home/rabdill/snakemake-chipseq/resources/ssp/mptable.txt"
+#     output:
+#         "{sample}"
+#     log:
+#         "logs/ssp/{sample}.log"
+#     container:
+#         ""
+#     shell:
+#         "ssp -i {input.reads} -o {sample} --odir results/qc --gt {input.gt} --mptable {input.mptable} -p 16"
 
 rule remove_duplicate_reads:
     input:
