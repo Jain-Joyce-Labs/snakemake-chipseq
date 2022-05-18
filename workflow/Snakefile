@@ -10,7 +10,7 @@ rule all:
         expand("results/readcounts/{sample}.txt", sample=config["inputs"].values())
 
 if config['trim']:
-    rule fastqc_initial:
+    rule fastqc_initial: # NOTE: FastQC won't run unless you add the outputs to "rule all" above
         input:
             "resources/reads/{sample}.fastq.gz"
         output:
@@ -61,7 +61,7 @@ if config['aligner'] == 'bowtie':
             ref="/home/rabdill/snakemake-chipseq/resources/bowtie_ref/GRCh38_noalt_as.1.bt2",
             fastq=which_fastq
         output:
-            temp("results/mapped/{sample}.sam")
+            "results/mapped/{sample}.sam"
         log:
             "logs/bowtie/{sample}"
         container:
@@ -80,7 +80,7 @@ elif config['aligner'] == 'bwa':
             "/home/rabdill/snakemake-chipseq/resources/bwa_ref/Homo_sapiens.GRCh38.dna_rm.primary_assembly.fa.gz",
             which_fastq
         output:
-            temp("results/mapped/index/{sample}.sai")
+            "results/mapped/index/{sample}.sai"
         log:
             "logs/bwa/{sample}.aln"
         container:
@@ -96,7 +96,7 @@ elif config['aligner'] == 'bwa':
             "results/mapped/index/{sample}.sai",
             which_fastq
         output:
-            temp("results/mapped/{sample}.sam")
+            "results/mapped/{sample}.sam"
         log:
             "logs/bwa/{sample}.samse"
         container:
@@ -110,7 +110,7 @@ rule sam_to_bam:
     input:
         "results/mapped/{sample}.sam"
     output:
-        temp("results/mapped/unsorted/{sample}.bam")
+        "results/mapped/unsorted/{sample}.bam"
     log:
         "logs/samtools/{sample}.view"
     container:
@@ -124,7 +124,7 @@ rule sort_bam:
     input:
         "results/mapped/unsorted/{sample}.bam"
     output:
-        temp("results/mapped/sorted/{sample}.bam")
+        "results/mapped/sorted/{sample}.bam"
     log:
         "logs/samtools/{sample}.sort"
     container:
@@ -134,28 +134,28 @@ rule sort_bam:
     shell:
         "samtools sort -l 9 -O bam -@ 10 -o {output} {input}" # 768MB memory required per thread?
 
-# rule remove_duplicate_reads:
-#     input:
-#         "results/mapped/sorted/{sample}.bam"
-#     output:
-#         temp("results/mapped/nodupes/{sample}.bam")
-#     log:
-#         "logs/picard/{sample}"
-#     container:
-#         "docker://broadinstitute/picard:2.27.1"
-#     resources:
-#         memory=16
-#     shell:
-#         "java -jar /usr/picard/picard.jar MarkDuplicates "
-#             "I={input} "
-#             "O={output} "
-#             "M=logs/picard/{wildcards[sample]}.txt "
-#             "REMOVE_DUPLICATES=true "
-#             "2> {log}"
+rule remove_duplicate_reads:
+    input:
+        "results/mapped/sorted/{sample}.bam"
+    output:
+        "results/mapped/nodupes/{sample}.bam"
+    log:
+        "logs/picard/{sample}"
+    container:
+        "docker://broadinstitute/picard:2.27.1"
+    resources:
+        memory=32
+    shell:
+        "java -jar /usr/picard/picard.jar MarkDuplicates "
+            "I={input} "
+            "O={output} "
+            "M=logs/picard/{wildcards[sample]}.txt "
+            "REMOVE_DUPLICATES=true "
+            "2> {log}"
 
 rule remove_blacklisted:
     input:
-        bam="results/mapped/sorted/{sample}.bam",
+        bam="results/mapped/nodupes/{sample}.bam",
         blacklist="/home/rabdill/snakemake-chipseq/resources/hg38-blacklist.v2.bed"
     output:
         # The regex valication here is NEEDED to prevent
@@ -175,8 +175,8 @@ rule remove_blacklisted:
 rule count_reads_stages:
     input:
         "results/mapped/unsorted/{sample}.bam",
-        "results/mapped/sorted/{sample}.bam",
-        #"results/mapped/nodupes/{sample}.bam",
+        #"results/mapped/sorted/{sample}.bam",
+        "results/mapped/nodupes/{sample}.bam",
         "results/mapped/{sample}.bam"
     output:
         "results/readcounts/{sample}.txt"
