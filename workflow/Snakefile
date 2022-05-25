@@ -12,17 +12,19 @@ rule all:
         # Read counts at various stages
         expand("results/readcounts/{sample}.txt", sample=config["inputs"].keys()),
         expand("results/readcounts/{sample}.txt", sample=config["inputs"].values()),
-        # FastQC reports
-        expand("results/qc/trimmed/fastqc_{sample}.zip", sample=config["inputs"].keys()),
-        expand("results/qc/trimmed/fastqc_{sample}.zip", sample=config["inputs"].values())
+        # # Initial FastQC reports
+        expand("results/qc/initial/{sample}_fastqc.html", sample=config["inputs"].keys()),
+        expand("results/qc/initial/{sample}_fastqc.html", sample=config["inputs"].values()),
+        # Trimmed FastQC reports
+        expand("results/qc/trimmed/{sample}_fastqc.html", sample=config["inputs"].keys()),
+        expand("results/qc/trimmed/{sample}_fastqc.html", sample=config["inputs"].values())
 
 if config['trim']:
     rule fastqc_initial: # NOTE: FastQC won't run unless you add the outputs to "rule all" above
         input:
             "resources/reads/{sample}.fastq.gz"
         output:
-            "results/qc/initial/fastqc_{sample}.html"
-            "results/qc/initial/fastqc_{sample}.zip"
+            "results/qc/initial/{sample}_fastqc.html"
         log:
             "logs/fastqc/{sample}.initial"
         container:
@@ -30,7 +32,7 @@ if config['trim']:
         resources:
             memory=12
         shell:
-            "fastqc {input} --noextract --threads 16 --outdir results/qc/initial/"
+            "fastqc {input} --noextract --threads 16 --outdir results/qc/initial"
     rule trimmomatic:
         input:
             "resources/reads/{sample}.fastq.gz"
@@ -48,8 +50,8 @@ if config['trim']:
         input:
             "results/trimmed/{sample}.fastq.gz"
         output:
-            "results/qc/trimmed/fastqc_{sample}.html"
-            "results/qc/trimmed/fastqc_{sample}.zip"
+            "results/qc/trimmed/{sample}_fastqc.html",
+            "results/qc/trimmed/{sample}_fastqc.zip"
         log:
             "logs/fastqc/{sample}.aftertrim"
         container:
@@ -57,7 +59,7 @@ if config['trim']:
         resources:
             memory=12
         shell:
-            "fastqc {input} --noextract --threads 16 --outdir results/qc/trimmed/"
+            "fastqc {input} --noextract --threads 16 --outdir results/qc/trimmed"
 
 if config['aligner'] == 'bowtie':
     rule bowtie_align:
