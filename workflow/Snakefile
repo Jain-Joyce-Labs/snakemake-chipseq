@@ -7,6 +7,8 @@ rule all:
     input:
         # Bedgraph files of the ChIP samples
         expand("results/{sample}.bedgraph", sample=config["inputs"].keys()),
+        # Same results, but bigwig output
+        expand("results/{sample}.bw", sample=config["inputs"].keys()),
         # Read counts at various stages
         expand("results/readcounts/{sample}.txt", sample=config["inputs"].keys()),
         expand("results/readcounts/{sample}.txt", sample=config["inputs"].values()),
@@ -249,3 +251,24 @@ rule make_bedgraph:
         "bamCompare -b1 {input.lb1} -b2 {input.control} "
             "--binSize {params.binsize} --numberOfProcessors 16 "
             "--outFileFormat bedgraph --outFileName {output}"
+
+rule make_bigwig:
+    input:
+        lb1="results/mapped/{sample}.bam",
+        control=lambda wcs: inputfiles[wcs.sample],
+        lb1_index="results/mapped/{sample}.bam.bai",
+        control_index=lambda wcs: inputindices[wcs.sample],
+    output:
+        "results/{sample}.bw"
+    params:
+        binsize=config['binsize']
+    log:
+        "logs/deeptools/{sample}.bw.log"
+    container:
+        "docker://stjudecloud/deeptools:1.0.1"
+    resources:
+        memory=12
+    shell:
+        "bamCompare -b1 {input.lb1} -b2 {input.control} "
+            "--binSize {params.binsize} --numberOfProcessors 16 "
+            "--outFileFormat bigwig --outFileName {output}"
