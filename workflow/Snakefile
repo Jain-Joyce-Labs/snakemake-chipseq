@@ -45,7 +45,8 @@ if config['trim']:
         resources:
             memory=12
         shell:
-            "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} SLIDINGWINDOW:4:20"
+            "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} ILLUMINACLIP:/home/rabdill/snakemake-chipseq/resources/truseq_adapters.fasta:2:20:5 SLIDINGWINDOW:4:20 HEADCROP:10 MINLEN:20"
+            #"java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} SLIDINGWINDOW:4:20 MINLEN:20"
     rule fastqc_trimmed:
         input:
             "results/trimmed/{sample}.fastq.gz"
