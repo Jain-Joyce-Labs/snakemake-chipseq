@@ -6,13 +6,13 @@ include: "common.smk"
 rule all:
     input:
         # Bedgraph files of the ChIP samples
-        expand("results/{sample}.bedgraph", sample=config["inputs"].keys()),
+        expand("results/{sample}.bedgraph", sample=config["inputs"].keys()) if config['bedgraph'] else [],
         # Same results, but bigwig output
-        expand("results/{sample}.bw", sample=config["inputs"].keys()),
+        expand("results/{sample}.bw", sample=config["inputs"].keys()) if config['bigwig'] else [],
         # Read counts at various stages
         expand("results/readcounts/{sample}.txt", sample=config["inputs"].keys()),
         expand("results/readcounts/{sample}.txt", sample=config["inputs"].values()),
-        # # Initial FastQC reports
+        # Initial FastQC reports
         expand("results/qc/initial/{sample}_fastqc.html", sample=config["inputs"].keys()),
         expand("results/qc/initial/{sample}_fastqc.html", sample=config["inputs"].values()),
         # Trimmed FastQC reports
@@ -45,7 +45,7 @@ if config['trim']:
         resources:
             memory=12
         shell:
-            "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} ILLUMINACLIP:/home/rabdill/snakemake-chipseq/resources/truseq_adapters.fasta:2:20:5 SLIDINGWINDOW:4:20 HEADCROP:10 MINLEN:20"
+            "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} ILLUMINACLIP:/home/rabdill/snakemake-chipseq/resources/truseq_adapters.fasta:2:20:5 SLIDINGWINDOW:4:20 CROP:65 MINLEN:20"
             #"java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} SLIDINGWINDOW:4:20 MINLEN:20"
     rule fastqc_trimmed:
         input:
@@ -63,26 +63,49 @@ if config['trim']:
             "fastqc {input} --noextract --threads 16 --outdir results/qc/trimmed"
 
 if config['aligner'] == 'bowtie':
-    rule bowtie_align:
-        input:
-            # There are multiple index files required here, but we
-            # list one with the assumption that the rest are always
-            # with it
-            ref="/home/rabdill/snakemake-chipseq/resources/bowtie_ref/GRCh38_noalt_as.1.bt2",
-            fastq=which_fastq
-        output:
-            "results/mapped/{sample}.sam"
-        log:
-            "logs/bowtie/{sample}"
-        container:
-            "docker://biocontainers/bowtie2:v2.4.1_cv1"
-        resources:
-            memory=12
-        shell:
-            "bowtie2 -p 16 -q --local "
-                "-x /home/rabdill/snakemake-chipseq/resources/bowtie_ref/GRCh38_noalt_as "
-                "-U {input.fastq} "
-                "-S {output} 2> {log}.err"
+    if config['paired_end']:
+        rule bowtie_align_paired:
+            input:
+                # There are multiple index files required here, but we
+                # list one with the assumption that the rest are always
+                # with it
+                ref="/home/rabdill/snakemake-chipseq/resources/bowtie_ref/GRCh38/GRCh38_noalt_as.1.bt2",
+                fastq1=which_fastq_r1,
+                fastq2=which_fastq_r2
+            output:
+                "results/mapped/{sample}.sam"
+            log:
+                "logs/bowtie/{sample}"
+            container:
+                "docker://biocontainers/bowtie2:v2.4.1_cv1"
+            resources:
+                memory=12
+            shell:
+                "bowtie2 -p 16 -q --local "
+                    "-x /home/rabdill/snakemake-chipseq/resources/bowtie_ref/GRCh38/GRCh38_noalt_as "
+                    "-1 {input.fastq1} -2 {input.fastq2 -X 300 "
+                    "-S {output} 2> {log}.err"
+    else:
+        rule bowtie_align_single:
+            input:
+                # There are multiple index files required here, but we
+                # list one with the assumption that the rest are always
+                # with it
+                ref="/home/rabdill/snakemake-chipseq/resources/bowtie_ref/GRCh38/GRCh38_noalt_as.1.bt2",
+                fastq=which_fastq
+            output:
+                "results/mapped/{sample}.sam"
+            log:
+                "logs/bowtie/{sample}"
+            container:
+                "docker://biocontainers/bowtie2:v2.4.1_cv1"
+            resources:
+                memory=12
+            shell:
+                "bowtie2 -p 16 -q --local "
+                    "-x /home/rabdill/snakemake-chipseq/resources/bowtie_ref/GRCh38/GRCh38_noalt_as "
+                    "-U {input.fastq} "
+                    "-S {output} 2> {log}.err"
 
 elif config['aligner'] == 'bwa':
     rule bwa_aln:
@@ -185,7 +208,7 @@ rule remove_blacklisted:
         # The regex valication here is NEEDED to prevent
         # a big infinite loop where snakemake is inferring
         # ever-growing values for "sample"
-        "results/mapped/{sample,\w\w\w\d+}.bam"
+        "results/mapped/{sample,[\w\d]+-[\w\d]+}.bam"
     log:
         "logs/bedtools/{sample}"
     container:
@@ -234,44 +257,48 @@ for chip, control in config["inputs"].items():
     inputfiles[chip] = f'results/mapped/{control}.bam'
     inputindices[chip] = f'results/mapped/{control}.bam.bai'
 
-rule make_bedgraph:
-    input:
-        lb1="results/mapped/{sample}.bam",
-        control=lambda wcs: inputfiles[wcs.sample],
-        lb1_index="results/mapped/{sample}.bam.bai",
-        control_index=lambda wcs: inputindices[wcs.sample],
-    output:
-        "results/{sample}.bedgraph"
-    params:
-        binsize=config['binsize']
-    log:
-        "logs/deeptools/{sample}.log"
-    container:
-        "docker://stjudecloud/deeptools:1.0.1"
-    resources:
-        memory=12
-    shell:
-        "bamCompare -b1 {input.lb1} -b2 {input.control} "
-            "--binSize {params.binsize} --numberOfProcessors 16 "
-            "--outFileFormat bedgraph --outFileName {output}"
+if config['bedgraph']:
+    rule make_bedgraph:
+        input:
+            lb1="results/mapped/{sample}.bam",
+            control=lambda wcs: inputfiles[wcs.sample],
+            lb1_index="results/mapped/{sample}.bam.bai",
+            control_index=lambda wcs: inputindices[wcs.sample],
+        output:
+            "results/{sample}.bedgraph"
+        params:
+            binsize=config['binsize']
+        log:
+            "logs/deeptools/{sample}.log"
+        container:
+            "docker://stjudecloud/deeptools:1.0.1"
+        resources:
+            memory=12
+        shell:
+            "bamCompare -b1 {input.lb1} -b2 {input.control} "
+                "--binSize {params.binsize} --numberOfProcessors 16 "
+                "--outFileFormat bedgraph --outFileName {output}"
 
-rule make_bigwig:
-    input:
-        lb1="results/mapped/{sample}.bam",
-        control=lambda wcs: inputfiles[wcs.sample],
-        lb1_index="results/mapped/{sample}.bam.bai",
-        control_index=lambda wcs: inputindices[wcs.sample],
-    output:
-        "results/{sample}.bw"
-    params:
-        binsize=config['binsize']
-    log:
-        "logs/deeptools/{sample}.bw.log"
-    container:
-        "docker://stjudecloud/deeptools:1.0.1"
-    resources:
-        memory=12
-    shell:
-        "bamCompare -b1 {input.lb1} -b2 {input.control} "
-            "--binSize {params.binsize} --numberOfProcessors 16 "
-            "--outFileFormat bigwig --outFileName {output}"
+if config['bigwig']:
+    rule make_bigwig:
+        input:
+            lb1="results/mapped/{sample}.bam",
+            control=lambda wcs: inputfiles[wcs.sample],
+            lb1_index="results/mapped/{sample}.bam.bai",
+            control_index=lambda wcs: inputindices[wcs.sample],
+        output:
+            "results/{sample}.bw"
+        params:
+            binsize=config['binsize']
+        log:
+            "logs/deeptools/{sample}.bw.log"
+        container:
+            "docker://stjudecloud/deeptools:1.0.1"
+        resources:
+            memory=12
+        shell:
+            "bamCompare -b1 {input.lb1} -b2 {input.control} "
+                "--binSize {params.binsize} --numberOfProcessors 16 "
+                "--outFileFormat bigwig --outFileName {output}"
+
+# TODO: Incorporate MultiQC https://multiqc.info/
