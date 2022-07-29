@@ -5,7 +5,7 @@ aligner: bowtie
 # Should input FASTQ files be trimmed for quality?
 trim: True
 # Is the data paired-end?
-paired_end: False
+paired_end: True
 # Which output formats should be returned?
 bedgraph: True
 bigwig: False
@@ -17,11 +17,7 @@ binsize: 10000
 # Below, the keys are the ChIP sample names, and the values are the input
 # files.
 inputs:
-    GSK3A1-CTCF: GSK3A1-Input
-    GSK3A1-RAD21: GSK3A1-Input
-    GSK3A3-CTCF: GSK3A3-Input
-    GSK3A3-RAD21: GSK3A3-Input
-    Scr2-CTCF: Scr2-Input
-    Scr2-RAD21: Scr2-Input
-    Scr3-CTCF: Scr2-Input # Missing input?
-    Scr3-RAD21: Scr2-Input # Missing input?
+    GSK3A2-CTCF: GSK3A2-Input
+    GSK3A2-RAD21: GSK3A2-Input
+    Scr1-CTCF: Scr1-Input
+    Scr1-RAD21: Scr1-Input
