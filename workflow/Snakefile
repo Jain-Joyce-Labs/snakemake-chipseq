@@ -27,6 +27,26 @@ rule all:
 
 if config['trim']:
     if config['paired_end']:
+        rule trimmomatic_paired:
+            input:
+                "resources/reads/{sample}.R1.fastq.gz",
+                "resources/reads/{sample}.R2.fastq.gz",
+            output:
+                "results/trimmed/{sample}.R1.fastq.gz",
+                "results/trimmed/{sample}.R1.unpaired.fastq.gz",
+                "results/trimmed/{sample}.R2.fastq.gz",
+                "results/trimmed/{sample}.R2.unpaired.fastq.gz",
+            log:
+                "logs/trimmomatic/{sample}.log"
+            container:
+                "docker://staphb/trimmomatic:0.38"
+            resources:
+                memory=12
+            shell:
+                # "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} ILLUMINACLIP:/home/rabdill/snakemake-chipseq/resources/truseq_adapters.fasta:2:20:5 SLIDINGWINDOW:4:20 CROP:65 MINLEN:20"
+                "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar PE -threads 16 "
+                "{input} {output} ILLUMINACLIP:/home/rabdill/snakemake-chipseq/resources/truseq_adapters.fasta:2:20:5 "
+                "SLIDINGWINDOW:4:20 MINLEN:20"
         rule fastqc_initial1: # NOTE: FastQC won't run unless you add the outputs to "rule all" above
             input:
                 "resources/reads/{sample}.R1.fastq.gz"
@@ -40,20 +60,6 @@ if config['trim']:
                 memory=4
             shell:
                 "fastqc {input} --noextract --threads 16 --outdir results/qc/initial"
-        rule trimmomatic1:
-            input:
-                "resources/reads/{sample}.R1.fastq.gz"
-            output:
-                "results/trimmed/{sample}.R1.fastq.gz"
-            log:
-                "logs/trimmomatic/{sample}.R1.log"
-            container:
-                "docker://staphb/trimmomatic:0.38"
-            resources:
-                memory=12
-            shell:
-                # "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} ILLUMINACLIP:/home/rabdill/snakemake-chipseq/resources/truseq_adapters.fasta:2:20:5 SLIDINGWINDOW:4:20 CROP:65 MINLEN:20"
-                "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} ILLUMINACLIP:/home/rabdill/snakemake-chipseq/resources/truseq_adapters.fasta:2:20:5 SLIDINGWINDOW:4:20 MINLEN:20"
         rule fastqc_trimmed1:
             input:
                 "results/trimmed/{sample}.R1.fastq.gz"
@@ -81,20 +87,6 @@ if config['trim']:
                 memory=4
             shell:
                 "fastqc {input} --noextract --threads 16 --outdir results/qc/initial"
-        rule trimmomatic2:
-            input:
-                "resources/reads/{sample}.R2.fastq.gz"
-            output:
-                "results/trimmed/{sample}.R2.fastq.gz"
-            log:
-                "logs/trimmomatic/{sample}.R2.log"
-            container:
-                "docker://staphb/trimmomatic:0.38"
-            resources:
-                memory=12
-            shell:
-                # "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} ILLUMINACLIP:/home/rabdill/snakemake-chipseq/resources/truseq_adapters.fasta:2:20:5 SLIDINGWINDOW:4:20 CROP:65 MINLEN:20"
-                "java -jar /Trimmomatic-0.38/trimmomatic-0.38.jar SE -threads 16 {input} {output} ILLUMINACLIP:/home/rabdill/snakemake-chipseq/resources/truseq_adapters.fasta:2:20:5 SLIDINGWINDOW:4:20 MINLEN:20"
         rule fastqc_trimmed2:
             input:
                 "results/trimmed/{sample}.R2.fastq.gz"
