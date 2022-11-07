@@ -1,10 +1,10 @@
 # Snakemake workflow: ChIP-Seq
 
 [![Snakemake](https://img.shields.io/badge/snakemake-≥6.3.0-brightgreen.svg)](https://snakemake.github.io)
-[![GitHub actions status](https://github.com/Jain_Joyce-Labs/snakemake-chipseq/workflows/Tests/badge.svg?branch=main)](https://github.com/Jain_Joyce-Labs/snakemake-chipseq/actions?query=branch%3Amain+workflow%3ATests)
-
 
 A Snakemake workflow for processing ChIP-seq experiments. Input is demultiplexed FASTQ sequencing files, output is bedgraph files.
+
+**!!!!!! PLEASE NOTE: This is under construction and currently only works out of the box for a deployment that's very specific to the Jain and Joyce Labs. The plan is to generalize this over time. !!!!!!**
 
 ## Steps
 
